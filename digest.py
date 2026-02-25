@@ -9,7 +9,7 @@ TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 
-def fetch_readwise_documents():
+def fetch_readwise_documents(location=None):
     updated_after = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     all_docs = []
     next_cursor = None
@@ -18,6 +18,8 @@ def fetch_readwise_documents():
         params = {"updatedAfter": updated_after}
         if next_cursor:
             params["pageCursor"] = next_cursor
+        if location:
+            params["location"] = location
 
         response = requests.get(
             "https://readwise.io/api/v3/list/",
@@ -101,8 +103,10 @@ def send_to_telegram(text):
 
 def main():
     print("Fetching documents from Readwise...")
-    docs = fetch_readwise_documents()
-    print(f"Found {len(docs)} documents")
+    feed_docs = fetch_readwise_documents(location="feed")
+    email_docs = fetch_readwise_documents(location="email")
+    docs = feed_docs + email_docs
+    print(f"Found {len(feed_docs)} feed + {len(email_docs)} email = {len(docs)} total")
 
     if not docs:
         print("No documents found, skipping digest")
