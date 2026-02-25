@@ -41,52 +41,38 @@ def build_articles_text(docs):
         return None
 
     lines = []
-    for doc in docs:
+    for i, doc in enumerate(docs, 1):
         title = doc.get("title", "").strip()
         url = doc.get("url") or doc.get("source_url", "")
         summary = doc.get("summary", "").strip()
         if title and url:
             short_summary = summary[:100] if summary else ""
-            lines.append(f"{title} | {short_summary} | {url}")
+            lines.append(f"{i}. {title} | {short_summary} | {url}")
 
     return "\n".join(lines)
 
 
-def generate_digest_with_ai(articles_text):
+def generate_digest_with_ai(articles_text, total_count):
     client = OpenAI(api_key=OPENAI_API_KEY)
     today = datetime.now().strftime("%d %B %Y")
 
-    prompt = f"""Ты составляешь ежедневный дайджест новостей на русском языке.
+    prompt = f"""Ты переводишь список статей в дайджест на русском языке.
 
-Вот список статей за последние 24 часа:
+Входящий список содержит РОВНО {total_count} статей пронумерованных от 1 до {total_count}.
+Ты ОБЯЗАН включить все {total_count} статей в ответ — ни одну не пропускай.
 
+Список статей:
 {articles_text}
 
-Для КАЖДОЙ статьи напиши одну строку: краткое описание на русском + ссылка.
-Используй ВСЕ статьи из списка без исключений.
-Сгруппируй по темам.
+Инструкции:
+1. Переведи заголовок каждой статьи на русский (кратко, 1 строка)
+2. Сгруппируй по категориям: AI & Tech / Бизнес / Наука / Австрия и Европа / Другое
+3. Каждая строка: - описание → url
+4. URL пиши как есть, без скобок
 
-Формат строго такой (простой текст, без markdown):
-
+Начни ответ с:
 Дайджест {today}
-
-AI & Tech
-- краткое описание → url
-
-Бизнес
-- краткое описание → url
-
-Наука
-- краткое описание → url
-
-Австрия и Европа
-- краткое описание → url
-
-Другое
-- краткое описание → url
-
-Если категория пустая - не включай её.
-Пиши url как есть, без скобок и markdown."""
+Статей: {total_count}"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -125,7 +111,7 @@ def main():
     articles_text = build_articles_text(docs)
     print(f"Articles text length: {len(articles_text)} chars")
     print("Generating digest with AI...")
-    digest = generate_digest_with_ai(articles_text)
+    digest = generate_digest_with_ai(articles_text, len(docs))
 
     print("Sending to Telegram...")
     send_to_telegram(digest)
