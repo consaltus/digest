@@ -68,7 +68,7 @@ def generate_digest_with_ai(articles_text):
 
 Для КАЖДОЙ статьи напиши одну строку: краткое описание на русском что в ней интересного + ссылка.
 Сгруппируй по темам (AI & Tech / Бизнес / Наука / Австрия & Европа).
-Если статья не подходит ни под одну из четырёх категорий — добавь её в категорию 🌍 Другое.
+Если статья не подходит ни под одну категорию — пропусти её.
 
 Формат строго такой:
 
@@ -91,7 +91,7 @@ def generate_digest_with_ai(articles_text):
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=6000,
+        max_tokens=2000,
     )
 
     return response.choices[0].message.content
