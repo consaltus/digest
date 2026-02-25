@@ -3,7 +3,6 @@ import requests
 from datetime import datetime, timedelta, timezone
 from openai import OpenAI
 
-# --- Конфиг ---
 READWISE_TOKEN = os.environ["READWISE_TOKEN"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
@@ -11,7 +10,6 @@ TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 
 def fetch_readwise_documents():
-    """Забирает все документы за последние 24 часа через пагинацию"""
     updated_after = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     all_docs = []
     next_cursor = None
@@ -38,26 +36,24 @@ def fetch_readwise_documents():
     return all_docs
 
 
-def build_digest(docs):
-    """Формирует текст для OpenAI"""
+def build_articles_text(docs):
     if not docs:
         return None
 
     lines = []
     for doc in docs:
-        title = doc.get("title", "")
-        summary = doc.get("summary", "")
+        title = doc.get("title", "").strip()
         url = doc.get("url") or doc.get("source_url", "")
+        summary = doc.get("summary", "").strip()
         if title and url:
-            lines.append(f"- {title} | {summary} | {url}")
+            short_summary = summary[:100] if summary else ""
+            lines.append(f"{title} | {short_summary} | {url}")
 
     return "\n".join(lines)
 
 
 def generate_digest_with_ai(articles_text):
-    """Отправляет в OpenAI и получает дайджест"""
     client = OpenAI(api_key=OPENAI_API_KEY)
-
     today = datetime.now().strftime("%d %B %Y")
 
     prompt = f"""Ты составляешь ежедневный дайджест новостей на русском языке.
@@ -66,41 +62,42 @@ def generate_digest_with_ai(articles_text):
 
 {articles_text}
 
-Для КАЖДОЙ статьи напиши одну строку: краткое описание на русском что в ней интересного + ссылка.
-Сгруппируй по темам (AI & Tech / Бизнес / Наука / Австрия & Европа).
-Если статья не подходит ни под одну категорию — пропусти её.
+Для КАЖДОЙ статьи напиши одну строку: краткое описание на русском + ссылка.
+Используй ВСЕ статьи из списка без исключений.
+Сгруппируй по темам.
 
-Формат строго такой:
+Формат строго такой (простой текст, без markdown):
 
-📰 Дайджест {today}
+Дайджест {today}
 
-🤖 AI & Tech
-• [краткое описание] → [url]
+AI & Tech
+- краткое описание → url
 
-💼 Бизнес
-• [краткое описание] → [url]
+Бизнес
+- краткое описание → url
 
-🔬 Наука
-• [краткое описание] → [url]
+Наука
+- краткое описание → url
 
-🇪🇺 Австрия & Европа
-• [краткое описание] → [url]
+Австрия и Европа
+- краткое описание → url
 
-Если в какой-то категории нет статей — пропусти её. Только дайджест, без лишних слов."""
+Другое
+- краткое описание → url
+
+Если категория пустая - не включай её.
+Пиши url как есть, без скобок и markdown."""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=2000,
+        max_tokens=4000,
     )
 
     return response.choices[0].message.content
 
 
 def send_to_telegram(text):
-    """Отправляет сообщение в Telegram"""
-    # Telegram ограничивает сообщения 4096 символами
-    # Если длиннее — разбиваем на части
     max_length = 4000
     chunks = [text[i:i+max_length] for i in range(0, len(text), max_length)]
 
@@ -125,7 +122,8 @@ def main():
         print("No documents found, skipping digest")
         return
 
-    articles_text = build_digest(docs)
+    articles_text = build_articles_text(docs)
+    print(f"Articles text length: {len(articles_text)} chars")
     print("Generating digest with AI...")
     digest = generate_digest_with_ai(articles_text)
 
